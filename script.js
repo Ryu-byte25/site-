@@ -55,28 +55,63 @@ billingButtons.forEach(button => button.addEventListener('click', () => {
   periodNodes.forEach(node => { node.textContent = annual ? '/ year' : '/ month'; });
 }));
 
+const API_BASE_URL = 'https://sitevoxa.onrender.com';
 const form = document.querySelector('#demo-form');
+
 if (form) {
-  form.addEventListener('submit', event => {
+  const submitButton = form.querySelector('button[type="submit"]');
+  const formNote = form.querySelector('.form-note');
+  const result = document.querySelector('#form-result');
+
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     if (!form.reportValidity()) return;
+
     const data = new FormData(form);
-    const message = `SiteVoxa demo request\n\nName: ${data.get('name')}\nWork email: ${data.get('email')}\nCompany: ${data.get('company')}\nWhat we'd like to manage better: ${data.get('message') || 'Not specified'}`;
-    const requestText = document.querySelector('#request-text');
-    const result = document.querySelector('#form-result');
-    if (requestText) requestText.value = message;
-    if (result) {
-      result.hidden = false;
-      result.scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest'});
+    const payload = {
+      name: String(data.get('name') || '').trim(),
+      email: String(data.get('email') || '').trim(),
+      company: String(data.get('company') || '').trim(),
+      message: String(data.get('message') || '').trim(),
+    };
+
+    const originalLabel = submitButton?.innerHTML;
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Sending request…';
+    }
+    if (formNote) formNote.textContent = 'Sending your request securely to SiteVoxa…';
+    if (result) result.hidden = true;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/leads/demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      let body = {};
+      try { body = await response.json(); } catch { body = {}; }
+      if (!response.ok) throw new Error(body.message || 'Unable to submit your request right now.');
+
+      form.reset();
+      if (formNote) formNote.textContent = body.message || "Demo request received. We'll be in touch shortly.";
+      if (result) {
+        result.hidden = false;
+        result.innerHTML = `<strong>Demo request received.</strong><p>Thanks — your details are now with the SiteVoxa team. We'll contact you using the work email you provided.</p>`;
+        result.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+      }
+    } catch (error) {
+      if (formNote) formNote.textContent = error.message || 'Something went wrong. Please try again.';
+      if (result) {
+        result.hidden = false;
+        result.innerHTML = `<strong>We couldn't send your request.</strong><p>${error.message || 'Please try again in a moment.'}</p>`;
+      }
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalLabel || 'Request demo';
+      }
     }
   });
 }
-
-const copyButton = document.querySelector('#copy-request');
-if (copyButton) copyButton.addEventListener('click', async () => {
-  const field = document.querySelector('#request-text');
-  const status = document.querySelector('#copy-status');
-  if (!field || !status) return;
-  try { await navigator.clipboard.writeText(field.value); status.textContent = 'Copied'; }
-  catch { field.focus(); field.select(); status.textContent = 'Select and copy the message above'; }
-});
