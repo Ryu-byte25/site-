@@ -45,15 +45,118 @@ if (heroVisual && appWindow && !reduceMotion && window.matchMedia('(pointer:fine
   heroVisual.addEventListener('mouseleave', () => { appWindow.style.transform = 'rotate(-1.3deg)'; });
 }
 
+// -----------------------------------------------------------------------------
+// Regional pricing
+// Nigeria uses deliberate local-market pricing rather than live FX conversion.
+// International visitors see USD. Visitors can always override the detection.
+// -----------------------------------------------------------------------------
+const PRICING = {
+  international: {
+    label: 'International',
+    currency: 'USD',
+    monthly: ['$399.99', '$799.99', '$1,499.99'],
+    annual: ['$3,999', '$7,999', '$14,999'],
+  },
+  nigeria: {
+    label: 'Nigeria',
+    currency: 'NGN',
+    monthly: ['₦399,000', '₦799,000', '₦1,499,000'],
+    annual: ['₦3,990,000', '₦7,990,000', '₦14,990,000'],
+  },
+};
+
+let activeBilling = 'monthly';
+let activeMarket = 'international';
+
 const billingButtons = document.querySelectorAll('[data-billing]');
-const priceNodes = document.querySelectorAll('[data-monthly][data-annual]');
+const priceNodes = [...document.querySelectorAll('[data-monthly][data-annual]')];
 const periodNodes = document.querySelectorAll('[data-period]');
+const pricingHead = document.querySelector('.pricing-head');
+
+function detectInitialMarket() {
+  const saved = localStorage.getItem('sitevoxa-pricing-market');
+  if (saved && PRICING[saved]) return saved;
+
+  const locale = String(navigator.language || '').toLowerCase();
+  let timeZone = '';
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { /* no-op */ }
+
+  return locale.endsWith('-ng') || timeZone === 'Africa/Lagos'
+    ? 'nigeria'
+    : 'international';
+}
+
+function renderPricing() {
+  const market = PRICING[activeMarket];
+  const values = market[activeBilling];
+
+  priceNodes.forEach((node, index) => {
+    if (values[index]) node.textContent = values[index];
+  });
+
+  periodNodes.forEach(node => {
+    node.textContent = activeBilling === 'annual' ? '/ year' : '/ month';
+  });
+
+  document.querySelectorAll('[data-market]').forEach(button => {
+    const active = button.dataset.market === activeMarket;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+
+  const marketNote = document.querySelector('#pricing-market-note');
+  if (marketNote) {
+    marketNote.textContent = activeMarket === 'nigeria'
+      ? 'Local pricing for customers billed in Nigeria (NGN).'
+      : 'International pricing in USD.';
+  }
+}
+
+if (pricingHead && priceNodes.length) {
+  const marketSwitcher = document.createElement('div');
+  marketSwitcher.className = 'market-switcher-wrap';
+  marketSwitcher.innerHTML = `
+    <div class="market-switcher" role="group" aria-label="Pricing region">
+      <button type="button" data-market="nigeria" aria-pressed="false">Nigeria <span>₦</span></button>
+      <button type="button" data-market="international" aria-pressed="false">International <span>$</span></button>
+    </div>
+    <p id="pricing-market-note" class="market-note"></p>
+  `;
+
+  const billingToggle = pricingHead.querySelector('.billing-toggle');
+  if (billingToggle) pricingHead.insertBefore(marketSwitcher, billingToggle);
+  else pricingHead.appendChild(marketSwitcher);
+
+  const regionalStyle = document.createElement('style');
+  regionalStyle.textContent = `
+    .market-switcher-wrap{margin:24px 0 14px;display:flex;flex-direction:column;align-items:center;gap:8px}
+    .market-switcher{display:inline-flex;padding:4px;border:1px solid rgba(9,37,29,.14);border-radius:999px;background:rgba(255,255,255,.72);box-shadow:0 8px 28px rgba(9,37,29,.06)}
+    .market-switcher button{border:0;background:transparent;color:#52635d;padding:10px 16px;border-radius:999px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s ease,color .2s ease,transform .2s ease}
+    .market-switcher button:hover{transform:translateY(-1px)}
+    .market-switcher button.active{background:#09251d;color:#fff}
+    .market-switcher button span{opacity:.72;margin-left:3px}
+    .market-note{margin:0!important;font-size:12px!important;color:#708079!important}
+    @media(max-width:560px){.market-switcher{width:100%;max-width:330px}.market-switcher button{flex:1;padding:10px 9px}}
+  `;
+  document.head.appendChild(regionalStyle);
+
+  activeMarket = detectInitialMarket();
+  document.querySelectorAll('[data-market]').forEach(button => {
+    button.addEventListener('click', () => {
+      activeMarket = button.dataset.market;
+      localStorage.setItem('sitevoxa-pricing-market', activeMarket);
+      renderPricing();
+    });
+  });
+}
+
 billingButtons.forEach(button => button.addEventListener('click', () => {
-  const annual = button.dataset.billing === 'annual';
+  activeBilling = button.dataset.billing === 'annual' ? 'annual' : 'monthly';
   billingButtons.forEach(btn => btn.classList.toggle('active', btn === button));
-  priceNodes.forEach(node => { node.textContent = annual ? node.dataset.annual : node.dataset.monthly; });
-  periodNodes.forEach(node => { node.textContent = annual ? '/ year' : '/ month'; });
+  renderPricing();
 }));
+
+renderPricing();
 
 const API_BASE_URL = 'https://sitevoxa.onrender.com';
 const form = document.querySelector('#demo-form');
