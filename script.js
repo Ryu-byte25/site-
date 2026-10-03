@@ -49,8 +49,8 @@ const PRICING = {
   international: {
     label: 'International',
     currency: 'USD',
-    monthly: ['$399.99', '$799.99', '$1,499.99'],
-    annual: ['$3,999', '$7,999', '$14,999'],
+    monthly: ['$245', '$799.99', '$1,499.99'],
+    annual: ['$2,450', '$7,999', '$14,999'],
   },
   nigeria: {
     label: 'Nigeria',
